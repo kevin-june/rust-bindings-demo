@@ -18,7 +18,7 @@ fn main() {
 /// * not crash when run
 /// * print to the console
 #[cfg(test)]
-mod test {
+mod tests {
     /// Examples using `CStr::from_bytes_with_nul()`.
     /// The source bytes must be nul terminated!
     /// A `CStr` references existing memory.
@@ -222,6 +222,93 @@ mod test {
             unsafe {
                 rust_bindings_demo::cmodule_pass_const_char_ptr(raw_ptr);
             }
+        }
+    }
+
+    /// This uses a `CStr` to reference memory that is returned from C.
+    mod cstr_from_const_char {
+        use std::ffi::CStr;
+
+        #[test]
+        fn test_from_static_string() {
+            let raw_ptr = unsafe { rust_bindings_demo::cmodule_return_const_char_ptr_static() };
+            let cstr = unsafe { CStr::from_ptr(raw_ptr) };
+            let string_slice = cstr.to_str().unwrap();
+            assert_eq!("Static string from C", string_slice);
+        }
+
+        /// WARNING: This test leaks memory!
+        #[test]
+        fn test_from_dynamic_string() {
+            let raw_ptr = unsafe { rust_bindings_demo::cmodule_return_const_char_ptr_alloc() };
+            // This works but there is no lifetime guarantee!
+            let cstr = unsafe { CStr::from_ptr(raw_ptr) };
+            let string_slice = cstr.to_str().unwrap();
+            assert_eq!("Dynamic string from C", string_slice);
+            // FIXME this leaks, doesn't it?
+        }
+
+        #[ignore]
+        #[test]
+        /// WARNING: This test performs an illegal memory access! It may:
+        /// * crash with an illegal instruction
+        /// * fail because memory has changed
+        fn test_lifetime_crash() {
+            let raw_ptr = unsafe { rust_bindings_demo::cmodule_return_const_char_ptr_alloc() };
+            let cstr = unsafe { CStr::from_ptr(raw_ptr) };
+            let string_slice = cstr.to_str().unwrap();
+            assert_eq!("Dynamic string from C", string_slice);
+
+            // Free the C string
+            unsafe { rust_bindings_demo::cmodule_const_char_ptr_free(raw_ptr) };
+
+            // The Rust CStr *references* the memory from C.
+            // Now that this memory has been freed, all further access is invalid!
+            assert_eq!("Dynamic string from C", string_slice);
+        }
+    }
+
+    mod cstring_from_const_char {
+        use std::ffi::{CStr, CString};
+
+        /// Rust's `CString` can not be used to directly take ownership of a string that was
+        /// allocated by foreign code!
+        /// That is, `*const char` can not be converted into a `CString`.
+        /*
+        #[test]
+        fn test_from_static_string() {
+            let raw_ptr = unsafe { rust_bindings_demo::cmodule_return_const_char_ptr_static() };
+            let cstring = unsafe { CString::from_ptr(raw_ptr) };
+        }
+        // */
+
+        /// Own a string from foreign code by using a `CStr` as an intermediate.
+        /// This is risky! We must manually ensure the lifetime of the memory.
+        /// WARNING: This test leaks memory!
+        #[test]
+        fn test_from_cstr() {
+            let raw_ptr = unsafe { rust_bindings_demo::cmodule_return_const_char_ptr_alloc() };
+            let cstr = unsafe { CStr::from_ptr(raw_ptr) };
+            let cstring = CString::from(cstr);
+            let string_slice = cstring.to_str().unwrap();
+            assert_eq!("Dynamic string from C", string_slice);
+            // FIXME this leaks!
+        }
+
+        /// TODO force a lifetime error.
+        #[test]
+        fn test_from_cstr_lifetime_crash() {
+            let raw_ptr = unsafe { rust_bindings_demo::cmodule_return_const_char_ptr_alloc() };
+            let cstr = unsafe { CStr::from_ptr(raw_ptr) };
+            let cstring = CString::from(cstr);
+            let string_slice = cstring.to_str().unwrap();
+            assert_eq!("Dynamic string from C", string_slice);
+
+            // Free the C string
+            unsafe { rust_bindings_demo::cmodule_const_char_ptr_free(raw_ptr) };
+
+            // TODO could this crash?
+            assert_eq!("Dynamic string from C", string_slice);
         }
     }
 }

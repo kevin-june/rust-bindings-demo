@@ -44,3 +44,15 @@ To see what binaries are available, look for Rust files in `src/bin/` or run:
 ```sh
 cargo test --bin
 ```
+
+## TODO
+
+* transfer ownership from Rust to C
+* transfer ownership from C to Rust
+* cause crashes due to lifetime errors
+
+## Reading
+
+* https://doc.rust-lang.org/std/ffi/struct.CString.html
+* https://doc.rust-lang.org/std/ffi/struct.CStr.html
+* https://stackoverflow.com/questions/24145823/how-do-i-convert-a-c-string-into-a-rust-string-and-back-via-ffi
